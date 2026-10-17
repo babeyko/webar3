@@ -3,34 +3,152 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#101827" />
     <title>AR-очки — MindAR Face Tracking</title>
     <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-face-aframe.prod.js"></script>
     <style>
-      html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; font-family: Arial, sans-serif; background: #111827; }
-      .hint { position: fixed; z-index: 10; left: 12px; right: 12px; bottom: 18px; padding: 12px 16px; border-radius: 12px; background: #111827dd; color: white; text-align: center; font-size: 14px; }
+      * { box-sizing: border-box; }
+      html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #101827; font-family: Arial, sans-serif; }
+      a-scene { position: absolute; inset: 0; width: 100%; height: 100%; }
+      .panel {
+        position: fixed; z-index: 20; top: max(12px, env(safe-area-inset-top)); left: 12px; right: 12px;
+        padding: 14px; border-radius: 14px; background: rgba(12, 19, 32, .88); color: #fff;
+        text-align: center; box-shadow: 0 4px 18px #0005;
+      }
+      #status { min-height: 38px; margin: 0 0 10px; font-size: 15px; line-height: 1.35; }
+      .controls { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; }
+      button { border: 0; border-radius: 10px; padding: 11px 16px; color: #08202a; background: #22d3ee; font-size: 15px; font-weight: 700; }
+      button.secondary { color: #fff; background: #334155; }
+      button:disabled { opacity: .55; }
+      #help { margin: 9px 0 0; color: #cbd5e1; font-size: 12px; line-height: 1.35; }
+      [hidden] { display: none !important; }
       .a-enter-vr { display: none !important; }
     </style>
   </head>
   <body>
-    <div class="hint">Разрешите доступ к камере и смотрите в объектив. Очки закреплены на переносице.</div>
-    <a-scene mindar-face="filterMinCF: 0.001; filterBeta: 1.0"
-      embedded color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights"
-      vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
-      <a-camera active="false" position="0 0 0"></a-camera>
-      <!-- Anchor 168 is located at the center of the face near the nose bridge. -->
-      <a-entity mindar-face-target="anchorIndex: 168">
-        <a-entity position="0 0.02 0.02" scale="0.72 0.72 0.72">
-          <!-- Lightweight procedural glasses: two lenses, bridge, and temples. -->
-          <a-torus position="-0.30 0.02 0" radius="0.18" radius-tubular="0.025" color="#22d3ee"></a-torus>
-          <a-torus position="0.30 0.02 0" radius="0.18" radius-tubular="0.025" color="#22d3ee"></a-torus>
-          <a-box position="0 0.02 0" width="0.20" height="0.035" depth="0.035" color="#f8fafc"></a-box>
-          <a-box position="-0.51 0.035 -0.025" width="0.25" height="0.035" depth="0.035" rotation="0 0 -8" color="#f8fafc"></a-box>
-          <a-box position="0.51 0.035 -0.025" width="0.25" height="0.035" depth="0.035" rotation="0 0 8" color="#f8fafc"></a-box>
-          <a-circle position="-0.30 0.02 0.008" radius="0.145" rotation="0 0 0" color="#0891b2" material="opacity: 0.24; transparent: true; side: double"></a-circle>
-          <a-circle position="0.30 0.02 0.008" radius="0.145" color="#0891b2" material="opacity: 0.24; transparent: true; side: double"></a-circle>
+    <section class="panel" aria-live="polite">
+      <p id="status">Нажмите «Включить камеру», затем разрешите доступ и держите лицо в кадре.</p>
+      <div class="controls">
+        <button id="startButton" type="button">Включить камеру</button>
+        <button id="stopButton" class="secondary" type="button" hidden>Остановить</button>
+        <button id="switchButton" class="secondary" type="button" hidden>Переключить камеру</button>
+      </div>
+      <p id="help">Для работы откройте страницу по HTTPS в Chrome или Safari. Очки закрепляются на центральной точке лица.</p>
+    </section>
+
+    <a-scene
+      mindar-face="autoStart: false; filterMinCF: 0.001; filterBeta: 1000"
+      embedded
+      color-space="sRGB"
+      renderer="colorManagement: true, physicallyCorrectLights"
+      vr-mode-ui="enabled: false"
+      device-orientation-permission-ui="enabled: false">
+      <a-camera active="false" position="0 0 0" look-controls="false"></a-camera>
+
+      <!-- Anchor 168 is the central nose-bridge point; the complete lightweight frame follows it. -->
+      <a-entity id="faceTarget" mindar-face-target="anchorIndex: 168">
+        <a-entity position="0 0.015 0.015" scale="0.72 0.72 0.72">
+          <a-torus position="-0.30 0.02 0" radius="0.16" radius-tubular="0.022" color="#22d3ee"></a-torus>
+          <a-torus position="0.30 0.02 0" radius="0.16" radius-tubular="0.022" color="#22d3ee"></a-torus>
+          <a-box position="0 0.02 0" width="0.20" height="0.032" depth="0.03" color="#f8fafc"></a-box>
+          <a-box position="-0.49 0.035 -0.015" width="0.22" height="0.03" depth="0.03" rotation="0 0 -8" color="#f8fafc"></a-box>
+          <a-box position="0.49 0.035 -0.015" width="0.22" height="0.03" depth="0.03" rotation="0 0 8" color="#f8fafc"></a-box>
+          <a-circle position="-0.30 0.02 0.008" radius="0.125" color="#0891b2" material="opacity: 0.22; transparent: true; side: double"></a-circle>
+          <a-circle position="0.30 0.02 0.008" radius="0.125" color="#0891b2" material="opacity: 0.22; transparent: true; side: double"></a-circle>
         </a-entity>
       </a-entity>
     </a-scene>
+
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        const scene = document.querySelector("a-scene");
+        const status = document.querySelector("#status");
+        const help = document.querySelector("#help");
+        const startButton = document.querySelector("#startButton");
+        const stopButton = document.querySelector("#stopButton");
+        const switchButton = document.querySelector("#switchButton");
+        let arSystem = null;
+        let isRunning = false;
+
+        const setStatus = (message) => { status.textContent = message; };
+
+        const initializeMindAR = () => {
+          arSystem = scene.systems["mindar-face-system"];
+          if (!arSystem) {
+            setStatus("Не удалось загрузить MindAR. Проверьте подключение к интернету и обновите страницу.");
+            startButton.disabled = true;
+          }
+        };
+        if (scene.hasLoaded) initializeMindAR();
+        else scene.addEventListener("loaded", initializeMindAR, { once: true });
+
+        scene.addEventListener("arReady", () => {
+          isRunning = true;
+          startButton.hidden = true;
+          stopButton.hidden = false;
+          switchButton.hidden = false;
+          setStatus("Камера включена. Держите лицо по центру кадра.");
+        });
+
+        scene.addEventListener("arError", () => {
+          isRunning = false;
+          startButton.hidden = false;
+          startButton.disabled = false;
+          stopButton.hidden = true;
+          switchButton.hidden = true;
+          setStatus("MindAR не смог запустить камеру. Разрешите доступ к камере для этого сайта и нажмите кнопку ещё раз.");
+        });
+
+        document.querySelector("#faceTarget").addEventListener("targetFound", () => {
+          setStatus("Лицо найдено — очки закреплены. Медленно поверните голову, чтобы проверить трекинг.");
+        });
+        document.querySelector("#faceTarget").addEventListener("targetLost", () => {
+          if (isRunning) setStatus("Лицо потеряно. Верните его в центр кадра при хорошем освещении.");
+        });
+
+        startButton.addEventListener("click", async () => {
+          if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+            setStatus("Браузер не предоставляет камеру. Откройте страницу по HTTPS в обычном Chrome или Safari.");
+            return;
+          }
+          if (!arSystem) {
+            setStatus("Сцена ещё загружается. Подождите немного и нажмите кнопку снова.");
+            return;
+          }
+          startButton.disabled = true;
+          setStatus("Запрашиваем камеру. Подтвердите запрос браузера.");
+          help.textContent = "Если запрос не появился, проверьте разрешение камеры в настройках сайта и обновите страницу.";
+          try {
+            await arSystem.start();
+          } catch (error) {
+            console.error("MindAR camera start failed:", error);
+            startButton.disabled = false;
+            setStatus("Не удалось включить камеру. Проверьте разрешение, закройте другие приложения с камерой и попробуйте снова.");
+          }
+        });
+
+        stopButton.addEventListener("click", () => {
+          if (arSystem && isRunning) arSystem.stop();
+          isRunning = false;
+          startButton.hidden = false;
+          startButton.disabled = false;
+          stopButton.hidden = true;
+          switchButton.hidden = true;
+          setStatus("Камера остановлена. Нажмите «Включить камеру», чтобы запустить снова.");
+        });
+
+        switchButton.addEventListener("click", () => {
+          if (!arSystem || !isRunning) return;
+          try {
+            arSystem.switchCamera();
+            setStatus("Камера переключена. Подождите, пока лицо снова появится в кадре.");
+          } catch (error) {
+            console.error("MindAR camera switch failed:", error);
+            setStatus("Не удалось переключить камеру.");
+          }
+        });
+      });
+    </script>
   </body>
 </html>
